@@ -1,0 +1,9 @@
+{
+  "name": "commit",
+  "version": "1.0.0",
+  "description": "Smart git commit skill: checks staging status, handles partial staging with interactive confirmation, and writes conventional commit messages.",
+  "author": {
+    "name": "mainkkkyt"
+  },
+  "license": "MIT"
+}

@@ -13,6 +13,13 @@
       "version": "1.0.0",
       "source": "./plugins/review",
       "category": "development"
+    },
+    {
+      "name": "commit",
+      "description": "Smart git commit: checks staging status, handles partial staging with interactive confirmation, and writes conventional commit messages.",
+      "version": "1.0.0",
+      "source": "./plugins/commit",
+      "category": "development"
     }
   ]
 }
