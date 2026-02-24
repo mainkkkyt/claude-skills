@@ -1,29 +1,43 @@
-# Claude Code Skills
+# claude-skills
 
-Personal Claude Code skills collection.
+Personal Claude Code skills collection, distributed as a plugin marketplace.
+
+## Install via Marketplace
+
+In a Claude Code session, run:
+
+```
+/plugin marketplace add mainkkkyt/claude-skills
+```
+
+Then install any plugin:
+
+```
+/plugin install review
+```
+
+## Available Plugins
+
+| Plugin | Description |
+|--------|-------------|
+| `review` | Code review across 4 dimensions: vulnerabilities, logic, coupling, reusability. Outputs a prioritized optimization list. |
 
 ## Structure
 
-Each skill lives in its own directory:
-
 ```
-<skill-name>/
-└── SKILL.md        # Skill definition (frontmatter + instructions)
+.claude-plugin/
+└── marketplace.json       # Marketplace catalog
+plugins/
+└── <plugin-name>/
+    ├── .claude-plugin/
+    │   └── plugin.json    # Plugin manifest
+    └── skills/
+        └── <skill-name>/
+            └── SKILL.md   # Skill definition
 ```
 
-## Usage
+## Alternatively: Direct Clone
 
-Skills in this repo are loaded via Claude Code's skill discovery.
-Each skill can be invoked with `/<skill-name>` in the Claude Code CLI.
-
-## Skill Frontmatter Reference
-
-```yaml
----
-name: skill-name
-description: What this skill does and when to use it
-argument-hint: "[optional-arg]"
-user-invocable: true
-allowed-tools: Read, Grep, Bash
----
+```bash
+git clone https://github.com/mainkkkyt/claude-skills ~/.claude/skills
 ```

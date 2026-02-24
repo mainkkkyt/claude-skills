@@ -1,0 +1,9 @@
+{
+  "name": "review",
+  "version": "1.0.0",
+  "description": "Code review skill that analyzes modified code across 4 dimensions: implementation vulnerabilities, logic design, coupling degree, and reusability. Outputs a prioritized optimization list (high/medium/low).",
+  "author": {
+    "name": "mainkkkyt"
+  },
+  "license": "MIT"
+}
