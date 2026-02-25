@@ -97,3 +97,4 @@ git commit -m "<生成的 commit message>"
 - 不要使用 `git add .` 或 `git add -A`，只提交用户已经暂存的内容
 - 不要在未经用户确认的情况下修改暂存区
 - commit message 语言与变更内容或已有 commit 历史保持一致（中文项目用中文，英文项目用英文）
+- 禁止在 commit message 中追加 `Co-Authored-By` 或任何 trailer 行
