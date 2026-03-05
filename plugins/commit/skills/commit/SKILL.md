@@ -86,7 +86,14 @@ git log --oneline -5
 
 ## 第四步：执行提交
 
-展示生成的 commit message 让用户确认，然后执行：
+使用 AskUserQuestion 工具展示生成的 commit message，让用户确认：
+
+- 问题：确认以下 commit message 并提交？
+- 选项：
+  - **确认提交**：执行提交
+  - **取消**：停止操作，不提交
+
+用户确认后执行：
 
 ```bash
 git commit -m "<生成的 commit message>"
@@ -98,5 +105,5 @@ git commit -m "<生成的 commit message>"
 
 - 不要使用 `git add .` 或 `git add -A`，只提交用户已经暂存的内容
 - 不要在未经用户确认的情况下修改暂存区
-- commit message 语言与变更内容或已有 commit 历史保持一致（中文项目用中文，英文项目用英文）
+- commit message 始终使用英文编写，无论项目语言或已有 commit 历史如何
 - 禁止在 commit message 中追加 `Co-Authored-By` 或任何 trailer 行
