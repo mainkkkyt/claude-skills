@@ -1,0 +1,9 @@
+{
+  "name": "repo",
+  "version": "1.0.0",
+  "description": "Open the current repository's CI/Actions page in the browser. Supports GitHub Actions and GitLab Pipelines.",
+  "author": {
+    "name": "mainkkkyt"
+  },
+  "license": "MIT"
+}

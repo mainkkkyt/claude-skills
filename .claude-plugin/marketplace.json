@@ -20,6 +20,13 @@
       "version": "1.0.0",
       "source": "./plugins/commit",
       "category": "development"
+    },
+    {
+      "name": "repo",
+      "description": "Open the current repository's CI/Actions page in the browser. Supports GitHub Actions and GitLab Pipelines.",
+      "version": "1.0.0",
+      "source": "./plugins/repo",
+      "category": "development"
     }
   ]
 }
