@@ -21,6 +21,9 @@ Then install any plugin:
 | Plugin | Description |
 |--------|-------------|
 | `review` | Code review across 4 dimensions: vulnerabilities, logic, coupling, reusability. Outputs a prioritized optimization list. |
+| `commit` | Smart git commit: staging-aware, conventional commit messages with interactive confirmation. |
+| `repo` | Open the current repository's CI/Actions page in the browser. |
+| `mempalace-auto-context` | Auto-load MemPalace memory context before substantive work; write diary/drawer entries at task end. |
 
 ## Structure
 

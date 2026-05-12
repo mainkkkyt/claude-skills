@@ -1,0 +1,9 @@
+{
+  "name": "mempalace-auto-context",
+  "version": "1.0.0",
+  "description": "Auto-load MemPalace memory context before substantive work: searches prior decisions, user preferences, historical bugs, and durable project facts, then writes diary/drawer entries at task end.",
+  "author": {
+    "name": "mainkkkyt"
+  },
+  "license": "MIT"
+}

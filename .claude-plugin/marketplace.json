@@ -27,6 +27,13 @@
       "version": "1.0.0",
       "source": "./plugins/repo",
       "category": "development"
+    },
+    {
+      "name": "mempalace-auto-context",
+      "description": "Auto-load MemPalace memory before substantive work: searches prior decisions, preferences, and durable project facts, then writes diary/drawer entries at task end.",
+      "version": "1.0.0",
+      "source": "./plugins/mempalace-auto-context",
+      "category": "productivity"
     }
   ]
 }
