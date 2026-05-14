@@ -22,10 +22,25 @@ Use before substantive work when the task touches any of the following:
 
 Skip only for clearly self-contained one-line tasks that cannot benefit from memory.
 
+## Wing Scope (Hard Rule)
+
+**Default scope is the current project wing only.** Compute it from the session's working directory: `wing_<basename(cwd) lowercased, spaces and dashes → underscores>`. Example: cwd `/Users/kangkai/termix` → `wing_termix`; cwd `/private/tmp` → `wing_tmp`.
+
+Apply to **every** mempalace tool call:
+
+- `mempalace_search` — always pass `wing=<current-project-wing>`
+- `mempalace_diary_write` — always pass `wing=<current-project-wing>`
+- `mempalace_add_drawer` — always pass `wing=<current-project-wing>`
+- `mempalace_check_duplicate` — also scope to the same wing if the API supports it
+
+**Only** drop the wing filter (or pass a different wing) when the user explicitly asks for cross-project lookup. Triggers include but are not limited to: "查所有项目"、"across all wings"、"看 X 项目里的…"、"search globally"、"在 wing_xxx 里找"。If the request is ambiguous, default to current wing and tell the user one line: "已限定在 `wing_<name>` 内搜索，若需跨项目请明说"。
+
+Do not "open the scope just in case" — broader hits cost noise and leak unrelated project decisions into the current task.
+
 ## Startup Flow
 
 1. Call `mempalace_status` to confirm the memory service is available and identify the active wing/room layout.
-2. Search with `mempalace_search` before relying on remembered facts. Use concise keywords: project name, subproject, module, bug symptom, doc title, command, or workflow.
+2. Search with `mempalace_search` before relying on remembered facts. Use concise keywords: project name, subproject, module, bug symptom, doc title, command, or workflow. **Always pass `wing=<current-project-wing>`** (see Wing Scope rule).
 3. Combine multiple targeted searches over one broad query — narrow keywords return higher-signal results.
 4. Verify drift-prone facts against live files, commands, simulators, services, or browser state. Memory reflects a past snapshot; current code is the source of truth.
 
@@ -39,7 +54,7 @@ At the end of every non-trivial task, call `mempalace_diary_write`:
 
 For durable facts that should outlive a single task, first call `mempalace_check_duplicate`, then `mempalace_add_drawer` if not a duplicate:
 
-- `wing`: the project's wing slug (ask the user or infer from prior drawers).
+- `wing`: `wing_<basename(cwd)>` per the Wing Scope rule. Do not ask the user; do not infer from prior drawers — the cwd is authoritative.
 - `room`: choose based on content
   - `docs` — rules, runbooks, conventions
   - `general` — workflows, processes, lifecycle facts

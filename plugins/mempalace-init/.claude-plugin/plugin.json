@@ -1,0 +1,9 @@
+{
+  "name": "mempalace-init",
+  "version": "1.0.0",
+  "description": "Install mempalace hooks for both Claude Code and Codex CLI so each session's dialog auto-archives to wing_<basename(cwd)>.",
+  "author": {
+    "name": "mainkkkyt"
+  },
+  "license": "MIT"
+}

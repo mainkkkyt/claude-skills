@@ -1,0 +1,9 @@
+{
+  "name": "mempalace-clean",
+  "version": "1.0.0",
+  "description": "Wipe all wings (drawers, diary, staging, hook state) from the local mempalace while keeping hooks functional. Lazy-rebuilds on next session.",
+  "author": {
+    "name": "mainkkkyt"
+  },
+  "license": "MIT"
+}

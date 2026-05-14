@@ -34,6 +34,27 @@
       "version": "1.0.0",
       "source": "./plugins/mempalace-auto-context",
       "category": "productivity"
+    },
+    {
+      "name": "mempalace-init",
+      "description": "Install mempalace hooks for Claude Code and Codex CLI so each session's dialog auto-archives to wing_<basename(cwd)>. Idempotent.",
+      "version": "1.0.0",
+      "source": "./plugins/mempalace-init",
+      "category": "productivity"
+    },
+    {
+      "name": "mempalace-clean",
+      "description": "Wipe all mempalace wings (drawers, diary, staging, hook state) while keeping hooks functional. Palace lazy-rebuilds on next session.",
+      "version": "1.0.0",
+      "source": "./plugins/mempalace-clean",
+      "category": "productivity"
+    },
+    {
+      "name": "mempalace-kill",
+      "description": "Full uninstall: remove mempalace hooks from Claude Code and Codex configs, delete the wrapper, then wipe ~/.mempalace/ entirely. mempalace CLI binary stays installed.",
+      "version": "1.0.0",
+      "source": "./plugins/mempalace-kill",
+      "category": "productivity"
     }
   ]
 }

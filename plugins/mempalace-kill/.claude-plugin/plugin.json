@@ -1,0 +1,9 @@
+{
+  "name": "mempalace-kill",
+  "version": "1.0.0",
+  "description": "Full uninstall: remove mempalace hooks from Claude Code and Codex configs, delete the wrapper, then wipe ~/.mempalace/ entirely. mempalace CLI itself stays installed.",
+  "author": {
+    "name": "mainkkkyt"
+  },
+  "license": "MIT"
+}
