@@ -28,14 +28,29 @@ test -x "$MP_PY"
 
 ## 第二步：Palace 骨架
 
+`~/.mempalace` 是 mempalace 的 kill-switch——目录不存在则所有 hook 静默 no-op。而 `mempalace init <dir>` **只**写 `mempalace.yaml`，不会真正建 `chroma.sqlite3`，palace db 是首次 `mine` 才落盘——所以 `mempalace status` 会报 "No palace found" 即便 hook 已在记 exchanges。要立刻建出 db 就直接调 `ChromaBackend.get_collection(create=True)`：
+
 ```bash
-test -d ~/.mempalace || {
-  mkdir -p ~/.mempalace/bootstrap-empty
+mkdir -p ~/.mempalace/bootstrap-empty
+test -f ~/.mempalace/bootstrap-empty/mempalace.yaml || \
   mempalace init ~/.mempalace/bootstrap-empty --yes --no-llm
-}
+
+"${MP_PY}" - <<'PY'
+from pathlib import Path
+from mempalace.config import MempalaceConfig
+from mempalace.backends.chroma import ChromaBackend
+cfg = MempalaceConfig()
+palace = cfg.palace_path
+col_name = cfg._file_config.get("collection_name", "mempalace_drawers")
+if not (Path(palace) / "chroma.sqlite3").exists():
+    ChromaBackend().get_collection(palace, col_name, create=True)
+    print(f"palace bootstrapped at {palace}")
+else:
+    print(f"palace exists at {palace}")
+PY
 ```
 
-注意：`~/.mempalace` 是 mempalace 的 kill-switch——目录不存在则所有 hook 静默 no-op。已存在则跳过 init。
+判定用 `chroma.sqlite3` 而**不是**目录存在性——后者会被 `~/.mempalace/locks/` 之类的边角目录骗到。
 
 ## 第三步：Claude Code wrapper
 
@@ -52,10 +67,32 @@ import io, json, sys
 from pathlib import Path
 import mempalace.hooks_cli as hc
 
+
+def _ensure_palace():
+    """Auto-init palace on first run. Idempotent. Covers the case where
+    ~/.mempalace exists (kill-switch satisfied) but chroma.sqlite3 was
+    never created — e.g. fresh install, manual delete, or skill ran
+    without the bootstrap step."""
+    try:
+        from mempalace.config import MempalaceConfig
+        from mempalace.backends.chroma import ChromaBackend
+        cfg = MempalaceConfig()
+        palace_path = cfg.palace_path
+        collection_name = cfg._file_config.get("collection_name", "mempalace_drawers")
+        if not (Path(palace_path) / "chroma.sqlite3").exists():
+            ChromaBackend().get_collection(palace_path, collection_name, create=True)
+            hc._log(f"auto-init palace at {palace_path}")
+    except Exception as e:
+        hc._log(f"auto-init skipped: {e}")
+
+
 def main():
     raw = sys.stdin.read()
     try: data = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError: data = {}
+
+    _ensure_palace()
+
     wing = hc._wing_from_transcript_path(data.get("transcript_path", ""))
 
     def _patched(tp):
@@ -75,6 +112,7 @@ def main():
     sys.stdin = io.StringIO(raw)
     hc.run_hook(sys.argv[1] if len(sys.argv) > 1 else "stop", "claude-code")
 
+
 if __name__ == "__main__":
     main()
 EOF
@@ -86,6 +124,7 @@ chmod +x "$WRAPPER_CLAUDE"
 - 只 patch `_ingest_transcript`（全文 mine），不动 `_save_diary_direct`——后者本来就用 `_wing_from_transcript_path` 派生正确 wing
 - 不用 staging dir：Claude Code transcript 的 `path.parent` 就是 `~/.claude/projects/-xxx-<project>/`，整个目录都属于同一个项目，直接 mine 不会污染其他 wing
 - transcript_path 为空（烟测场景）时 `_wing_from_transcript_path` 走 fallback 返回 `wing_sessions`，但因为 `path.is_file()` 失败、`_patched` 会 early-return，不会真去 mine
+- `_ensure_palace` 必须放在 `hc.run_hook` 调用前——这样即便用户 rm 掉了 palace 或第二步没跑成功，下次任意 hook 触发都会自愈，不会让 `mempalace status` 永远报 "No palace found"
 
 ## 第四步：Claude Code hooks
 
@@ -147,6 +186,22 @@ import mempalace.hooks_cli as hc
 
 STAGING_ROOT = Path.home() / ".mempalace" / "codex-staging"
 
+
+def _ensure_palace():
+    """Auto-init palace on first run. Idempotent."""
+    try:
+        from mempalace.config import MempalaceConfig
+        from mempalace.backends.chroma import ChromaBackend
+        cfg = MempalaceConfig()
+        palace_path = cfg.palace_path
+        collection_name = cfg._file_config.get("collection_name", "mempalace_drawers")
+        if not (Path(palace_path) / "chroma.sqlite3").exists():
+            ChromaBackend().get_collection(palace_path, collection_name, create=True)
+            hc._log(f"auto-init palace at {palace_path}")
+    except Exception as e:
+        hc._log(f"auto-init skipped: {e}")
+
+
 def _normalize(name):
     return (name.lower().replace(" ", "_").replace("-", "_")) or "session"
 
@@ -182,6 +237,9 @@ def main():
     raw = sys.stdin.read()
     try: data = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError: data = {}
+
+    _ensure_palace()
+
     session_id = hc._sanitize_session_id(str(data.get("session_id", "unknown")))
     wing, stage_dir = _resolve(data.get("transcript_path", ""), session_id)
     if wing:
@@ -212,6 +270,7 @@ chmod +x ~/.codex/hooks/mempalace_wrapper.py
 - Codex transcript 路径不含项目名，wing 派生必须从 `session_meta.payload.cwd` 读
 - Staging dir 按 session_id 隔离，避免 `~/.codex/sessions/YYYY/MM/DD/` 整目录被 mine 时混入其他项目
 - 必须用 hardlink (`os.link`)，**不能用 symlink**——`mempalace.convo_miner.scan_convos` 跳过 symlink，会导致 `Files processed: 0`
+- `_ensure_palace` 与 Claude wrapper 同款，保证两侧 hook 任意一边触发都会自愈 palace
 
 ## 第六步：Codex hooks.json
 
@@ -287,6 +346,15 @@ echo '{"session_id":"init-smoketest","transcript_path":"","stop_hook_active":fal
 ```
 
 四个都应返回 `{}` exit 0。若失败，告诉用户具体哪一步出错并打印日志：`tail -20 ~/.mempalace/hook_state/hook.log`。
+
+再验证 `_ensure_palace` 真的会自愈——删掉 palace 触发任意 hook，应当看到 `chroma.sqlite3` 被重建、`mempalace status` 不再报 "No palace found"：
+
+```bash
+rm -rf ~/.mempalace/palace
+echo '{"session_id":"autoinit-test","transcript_path":"","stop_hook_active":false}' | ~/.claude/hooks/mempalace_wrapper.py session-start
+test -f ~/.mempalace/palace/chroma.sqlite3 && echo "auto-init OK" || echo "auto-init FAILED"
+mempalace status | head -3
+```
 
 烟测只能验证 hook 链路通；实际 wing 名要靠真实 session 结束后 `mempalace status` 检查——应看到 `wing_<project>` 而**不是** `wing_sessions`。若仍看到 `sessions`，说明 settings.json 里的 command 还指向老的 `mempalace hook run` 直调，没换成 wrapper。
 
