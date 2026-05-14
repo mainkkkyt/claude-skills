@@ -37,12 +37,62 @@ test -d ~/.mempalace || {
 
 注意：`~/.mempalace` 是 mempalace 的 kill-switch——目录不存在则所有 hook 静默 no-op。已存在则跳过 init。
 
-## 第三步：Claude Code hooks
+## 第三步：Claude Code wrapper
+
+mempalace 自带的 `_ingest_transcript` 把所有 Claude Code transcript 硬编码写入 `wing_sessions`（hooks_cli.py:650 写死 `--wing sessions`），完全不会调 `_wing_from_transcript_path`。和 Codex 一样必须包 wrapper monkey-patch 掉这条，强制按 transcript path 派生 `wing_<project>`，否则 description 里 "auto-archived to `wing_<basename(cwd)>`" 是骗人的（全部都落进 `sessions` 一锅粥）。
+
+Claude Code 的 transcript 路径 `~/.claude/projects/-xxx-<project>/session.jsonl` 本身编码了项目名，直接 `_wing_from_transcript_path` 就能解析（不像 Codex 还要读 `session_meta.payload.cwd`），且 `path.parent` 就是该项目的专属目录、不会跨项目混淆——**不需要 staging dir**，wrapper 比 Codex 那一份简单很多。
+
+```bash
+WRAPPER_CLAUDE="$HOME/.claude/hooks/mempalace_wrapper.py"
+mkdir -p ~/.claude/hooks
+cat > "$WRAPPER_CLAUDE" <<EOF
+#!${MP_PY}
+import io, json, sys
+from pathlib import Path
+import mempalace.hooks_cli as hc
+
+def main():
+    raw = sys.stdin.read()
+    try: data = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError: data = {}
+    wing = hc._wing_from_transcript_path(data.get("transcript_path", ""))
+
+    def _patched(tp):
+        path = Path(tp).expanduser()
+        if not path.is_file() or path.stat().st_size < 100: return
+        try:
+            from mempalace.config import MempalaceConfig
+            MempalaceConfig()
+        except Exception: return
+        try:
+            hc._spawn_mine([hc._mempalace_python(), "-m", "mempalace", "mine",
+                            str(path.parent), "--mode", "convos", "--wing", wing])
+            hc._log(f"Claude ingest -> {wing}")
+        except OSError: pass
+    hc._ingest_transcript = _patched
+
+    sys.stdin = io.StringIO(raw)
+    hc.run_hook(sys.argv[1] if len(sys.argv) > 1 else "stop", "claude-code")
+
+if __name__ == "__main__":
+    main()
+EOF
+chmod +x "$WRAPPER_CLAUDE"
+```
+
+设计要点（**必须遵守**）：
+
+- 只 patch `_ingest_transcript`（全文 mine），不动 `_save_diary_direct`——后者本来就用 `_wing_from_transcript_path` 派生正确 wing
+- 不用 staging dir：Claude Code transcript 的 `path.parent` 就是 `~/.claude/projects/-xxx-<project>/`，整个目录都属于同一个项目，直接 mine 不会污染其他 wing
+- transcript_path 为空（烟测场景）时 `_wing_from_transcript_path` 走 fallback 返回 `wing_sessions`，但因为 `path.is_file()` 失败、`_patched` 会 early-return，不会真去 mine
+
+## 第四步：Claude Code hooks
 
 读 `~/.claude/settings.json`（若不存在则用 `{}` 作起始）。用 Python 安全 merge，**不要**覆盖用户已有的其他 hook 或配置：
 
 ```bash
-python3 <<'PY'
+WRAPPER_CLAUDE="$HOME/.claude/hooks/mempalace_wrapper.py" python3 <<'PY'
 import json, os
 from pathlib import Path
 
@@ -59,20 +109,21 @@ if "MEMPAL_DIR" in env:
         data["env"] = env
 
 hooks = data.setdefault("hooks", {})
+wrapper = os.environ["WRAPPER_CLAUDE"]
 
 def upsert(event, cmd, timeout, extra=None):
     spec = {"type": "command", "command": cmd, "timeout": timeout}
     if extra: spec.update(extra)
     entries = hooks.setdefault(event, [])
-    # 删除任何指向 mempalace 的旧条目
+    # 删除任何指向 mempalace 的旧条目（涵盖老的 `mempalace hook run` 直调和 wrapper）
     for entry in entries:
         entry["hooks"] = [h for h in entry.get("hooks", []) if "mempalace" not in h.get("command", "")]
     entries[:] = [e for e in entries if e.get("hooks")]
     entries.append({"hooks": [spec]})
 
-upsert("SessionStart", "mempalace hook run --hook session-start --harness claude-code", 30)
-upsert("Stop",         "mempalace hook run --hook stop --harness claude-code",          60, {"async": True})
-upsert("PreCompact",   "mempalace hook run --hook precompact --harness claude-code",    120)
+upsert("SessionStart", f"{wrapper} session-start", 30)
+upsert("Stop",         f"{wrapper} stop",          60, {"async": True})
+upsert("PreCompact",   f"{wrapper} precompact",    120)
 
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
@@ -82,7 +133,7 @@ PY
 
 若用户原本设了 `env.MEMPAL_DIR`，明确告知已删除——这是必要的清理。
 
-## 第四步：Codex wrapper
+## 第五步：Codex wrapper
 
 `~/.codex/hooks/mempalace_wrapper.py` 的 shebang 必须是 `$MP_PY`。用 heredoc 写出，**这是机器特定路径**：
 
@@ -162,7 +213,7 @@ chmod +x ~/.codex/hooks/mempalace_wrapper.py
 - Staging dir 按 session_id 隔离，避免 `~/.codex/sessions/YYYY/MM/DD/` 整目录被 mine 时混入其他项目
 - 必须用 hardlink (`os.link`)，**不能用 symlink**——`mempalace.convo_miner.scan_convos` 跳过 symlink，会导致 `Files processed: 0`
 
-## 第五步：Codex hooks.json
+## 第六步：Codex hooks.json
 
 用 absolute path（不能是 `$HOME`，Codex 不解析变量）：
 
@@ -197,7 +248,7 @@ print("codex hooks.json updated")
 PY
 ```
 
-## 第六步：Codex config.toml feature flag
+## 第七步：Codex config.toml feature flag
 
 确保 `~/.codex/config.toml` 含：
 
@@ -226,22 +277,26 @@ EOF
 
 若 `[features]` 已存在但缺 `codex_hooks` / `hooks`，告诉用户手动添加（不要在中间硬塞，会破坏 toml 结构）。
 
-## 第七步：烟测
+## 第八步：烟测
 
 ```bash
-echo '{"session_id":"init-smoketest","transcript_path":"","stop_hook_active":false}' | mempalace hook run --hook session-start --harness claude-code
+echo '{"session_id":"init-smoketest","transcript_path":"","stop_hook_active":false}' | ~/.claude/hooks/mempalace_wrapper.py session-start
+echo '{"session_id":"init-smoketest","transcript_path":"","stop_hook_active":false}' | ~/.claude/hooks/mempalace_wrapper.py stop
 echo '{"session_id":"init-smoketest","transcript_path":"","stop_hook_active":false}' | mempalace hook run --hook session-start --harness codex
 echo '{"session_id":"init-smoketest","transcript_path":"","stop_hook_active":false}' | ~/.codex/hooks/mempalace_wrapper.py stop
 ```
 
-三个都应返回 `{}` exit 0。若失败，告诉用户具体哪一步出错并打印日志：`tail -20 ~/.mempalace/hook_state/hook.log`。
+四个都应返回 `{}` exit 0。若失败，告诉用户具体哪一步出错并打印日志：`tail -20 ~/.mempalace/hook_state/hook.log`。
 
-## 第八步：报告
+烟测只能验证 hook 链路通；实际 wing 名要靠真实 session 结束后 `mempalace status` 检查——应看到 `wing_<project>` 而**不是** `wing_sessions`。若仍看到 `sessions`，说明 settings.json 里的 command 还指向老的 `mempalace hook run` 直调，没换成 wrapper。
+
+## 第九步：报告
 
 精简告知用户：
 
-- 改动了哪几个文件（`~/.claude/settings.json`、`~/.codex/hooks.json`、`~/.codex/hooks/mempalace_wrapper.py`、可能的 `~/.codex/config.toml`）
+- 改动了哪几个文件（`~/.claude/settings.json`、`~/.claude/hooks/mempalace_wrapper.py`、`~/.codex/hooks.json`、`~/.codex/hooks/mempalace_wrapper.py`、可能的 `~/.codex/config.toml`）
 - 若移除了 `env.MEMPAL_DIR` 要明说
 - 提示需要**重启**当前的 Claude Code / Codex session，新配置才生效（已运行的 session env 已固化）
+- 已有 `wing_sessions` 里的旧 drawer 不会被自动迁移；如需归位可手动 `mempalace search ... --wing sessions` 检视后处理
 
 不要写"安装成功 🎉"之类的废话。
