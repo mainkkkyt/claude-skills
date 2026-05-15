@@ -1,7 +1,7 @@
 {
   "name": "mempalace-auto-context",
   "version": "1.0.0",
-  "description": "Auto-load MemPalace memory context before substantive work: searches prior decisions, user preferences, historical bugs, and durable project facts, then writes diary/drawer entries at task end.",
+  "description": "Retrieve and write MemPalace project context using the same cwd-absolute-path-derived wing rule as the Claude Code and Codex hooks.",
   "author": {
     "name": "mainkkkyt"
   },
